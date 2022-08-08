@@ -17,7 +17,7 @@ type ShoppingCartDTO struct {
 	TotalPrice    decimal.Decimal       `json:"total_price"`
 	TotalVat      decimal.Decimal       `json:"total_vat"`
 	TotalDiscount decimal.Decimal       `json:"total_discount"`
-	TotalAfterVat decimal.Decimal       `json:"total_after_vat"`
+	SubTotal      decimal.Decimal       `json:"sub_total"`
 }
 
 type ShoppingCartItemDTO struct {
@@ -30,11 +30,11 @@ type ShoppingCartItemDTO struct {
 }
 
 type AddItemToBasketDTO struct {
-	ProductID string `json:"product_id"`
-	Quantity  int32  `json:"quantity"`
+	ProductID string `json:"product_id" validate:"required"`
+	Quantity  int32  `json:"quantity" validate:"gte=1,required"`
 }
 
 type UpdateItemInBasketDTO struct {
-	Quantity  int32  `json:"quantity"`
-	ProductID string `json:"product_id"`
+	Quantity  int32  `json:"quantity" validate:"gte=1,required"`
+	ProductID string `json:"product_id" validate:"required"`
 }

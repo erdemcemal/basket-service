@@ -5,6 +5,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// SalesHistory represents a sales history.
 type SalesHistory struct {
 	gorm.Model
 	SalesHistoryItems []SalesHistoryItem
@@ -15,6 +16,7 @@ type SalesHistory struct {
 	SubTotal          decimal.Decimal
 }
 
+// SalesHistoryItem represents a sales history item.
 type SalesHistoryItem struct {
 	gorm.Model
 	ProductID      string
@@ -22,7 +24,8 @@ type SalesHistoryItem struct {
 	SalesHistoryID uint
 }
 
-func NewOrderHistory(cart ShoppingCart) SalesHistory {
+// NewSalesHistory - creates a new sales history from a shopping cart.
+func NewSalesHistory(cart ShoppingCart) SalesHistory {
 	return SalesHistory{
 		UserID:            cart.UserID,
 		TotalPrice:        cart.TotalPrice,
@@ -33,15 +36,17 @@ func NewOrderHistory(cart ShoppingCart) SalesHistory {
 	}
 }
 
+// fromShoppingCartItems - converts a shopping cart items to sales history items.
 func fromShoppingCartItems(items []ShoppingCartItem) []SalesHistoryItem {
 	var orderItems []SalesHistoryItem
 	for _, item := range items {
-		orderItems = append(orderItems, newOrderHistoryItem(item.ProductID.String(), item.Quantity))
+		orderItems = append(orderItems, newSalesHistoryItem(item.ProductID.String(), item.Quantity))
 	}
 	return orderItems
 }
 
-func newOrderHistoryItem(productID string, quantity int32) SalesHistoryItem {
+// newSalesHistoryItem - creates a new sales history item with a product ID and quantity.
+func newSalesHistoryItem(productID string, quantity int32) SalesHistoryItem {
 	return SalesHistoryItem{
 		ProductID: productID,
 		Quantity:  quantity,

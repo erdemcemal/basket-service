@@ -2,9 +2,15 @@ package http
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/erdemcemal/basket-service/internal/dto"
+	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
 	"net/http"
+)
+
+var (
+	ErrProductIdNotFound = errors.New("product id not found")
 )
 
 // Response object for JSON responses
@@ -45,13 +51,13 @@ func (h *Handler) AddItemToBasket(w http.ResponseWriter, r *http.Request) {
 		sendErrorResponse(w, "Failed to decode JSON Body", err)
 		return
 	}
-	userId := r.Header.Get("user_id")
-	if userId == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		if err := json.NewEncoder(w).Encode(Response{Message: "user_id header is required"}); err != nil {
-			panic(err)
-		}
+	validate := validator.New()
+	err := validate.Struct(item)
+	if err != nil {
+		sendErrorResponse(w, "Failed to validate request", err)
+		return
 	}
+	userId := r.Header.Get("user_id")
 	cart, err := h.service.AddItemToBasket(r.Context(), userId, item)
 	if err != nil {
 		sendErrorResponse(w, "Failed to add item to basket", err)
@@ -66,16 +72,10 @@ func (h *Handler) AddItemToBasket(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) RemoveItemFromBasket(w http.ResponseWriter, r *http.Request) {
 	productId := mux.Vars(r)["productId"]
 	if productId == "" {
-		sendErrorResponse(w, "productId is required", nil)
+		sendErrorResponse(w, "productId is required", ErrProductIdNotFound)
 		return
 	}
 	userId := r.Header.Get("user_id")
-	if userId == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		if err := json.NewEncoder(w).Encode(Response{Message: "user_id header is required"}); err != nil {
-			panic(err)
-		}
-	}
 	cart, err := h.service.RemoveItemFromBasket(r.Context(), userId, productId)
 	if err != nil {
 		sendErrorResponse(w, "Failed to remove item from basket", err)
@@ -93,17 +93,13 @@ func (h *Handler) UpdateItemInBasket(w http.ResponseWriter, r *http.Request) {
 		sendErrorResponse(w, "Failed to decode JSON Body", err)
 		return
 	}
-	if item.Quantity < 1 {
-		sendErrorResponse(w, "Quantity must be greater than 0", nil)
+	validate := validator.New()
+	err := validate.Struct(item)
+	if err != nil {
+		sendErrorResponse(w, "Failed to validate request", err)
 		return
 	}
 	userId := r.Header.Get("user_id")
-	if userId == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		if err := json.NewEncoder(w).Encode(Response{Message: "user_id header is required"}); err != nil {
-			panic(err)
-		}
-	}
 	cart, err := h.service.UpdateItemInBasket(r.Context(), userId, item.ProductID, item.Quantity)
 	if err != nil {
 		sendErrorResponse(w, "Failed to update item in basket", err)
@@ -117,18 +113,12 @@ func (h *Handler) UpdateItemInBasket(w http.ResponseWriter, r *http.Request) {
 // CheckoutBasket - checkout user basket
 func (h *Handler) CheckoutBasket(w http.ResponseWriter, r *http.Request) {
 	userId := r.Header.Get("user_id")
-	if userId == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		if err := json.NewEncoder(w).Encode(Response{Message: "user_id header is required"}); err != nil {
-			panic(err)
-		}
-	}
 	err := h.service.CheckoutBasket(r.Context(), userId)
 	if err != nil {
 		sendErrorResponse(w, "Failed to checkout basket", err)
 		return
 	}
-	if err := sendOkResponse(w, nil); err != nil {
+	if err := sendOkResponse(w, Response{Message: "order placed"}); err != nil {
 		panic(err)
 	}
 }

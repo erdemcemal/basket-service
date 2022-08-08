@@ -5,6 +5,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// ShoppingCart - represents a shopping cart.
 type ShoppingCart struct {
 	Base
 	UserID        string             `json:"user_id"`
@@ -15,6 +16,7 @@ type ShoppingCart struct {
 	SubTotal      decimal.Decimal    `json:"total_after_vat"`
 }
 
+// NewShoppingCart - creates a new shopping cart from a user ID.
 func NewShoppingCart(userID string) ShoppingCart {
 	cartId := uuid.Must(uuid.NewV4())
 	return ShoppingCart{
@@ -30,11 +32,13 @@ func NewShoppingCart(userID string) ShoppingCart {
 	}
 }
 
+// AddItem - adds an item to the shopping cart and recalculates the total price.
 func (s *ShoppingCart) AddItem(item ShoppingCartItem) {
 	s.Items = append(s.Items, item)
 	s.CalculateTotalPrice()
 }
 
+// RemoveItem - removes an item from the shopping cart and recalculates the total price.
 func (s *ShoppingCart) RemoveItem(itemId string) {
 	for i, it := range s.Items {
 		if it.ProductID.String() == itemId {
@@ -45,6 +49,7 @@ func (s *ShoppingCart) RemoveItem(itemId string) {
 	}
 }
 
+// UpdateQuantity - updates the quantity of an item in the shopping cart and recalculates the total price.
 func (s *ShoppingCart) UpdateQuantity(item ShoppingCartItem) {
 	for i, it := range s.Items {
 		if it.ProductID == item.ProductID {
@@ -55,6 +60,7 @@ func (s *ShoppingCart) UpdateQuantity(item ShoppingCartItem) {
 	}
 }
 
+// ContainsItem - checks if the shopping cart contains an item.
 func (s *ShoppingCart) ContainsItem(productId string) bool {
 	for _, i := range s.Items {
 		if i.ProductID.String() == productId {
@@ -64,6 +70,7 @@ func (s *ShoppingCart) ContainsItem(productId string) bool {
 	return false
 }
 
+// GetCartItemByProductId - returns the shopping cart item for a given product id.
 func (s *ShoppingCart) GetCartItemByProductId(productId string) (ShoppingCartItem, bool) {
 	for _, i := range s.Items {
 		if i.ProductID.String() == productId {
@@ -73,6 +80,7 @@ func (s *ShoppingCart) GetCartItemByProductId(productId string) (ShoppingCartIte
 	return ShoppingCartItem{}, false
 }
 
+// CalculateTotalPrice - recalculates the total price of the shopping cart.
 func (s *ShoppingCart) CalculateTotalPrice() {
 	// calculate total price with vat rate and quantity
 	totalVat := decimal.Zero
@@ -83,9 +91,10 @@ func (s *ShoppingCart) CalculateTotalPrice() {
 	}
 	s.TotalPrice = totalPrice
 	s.TotalVat = totalVat
-	s.SubTotal = decimal.Sum(totalPrice, totalVat)
+	s.SubTotal = decimal.Sum(totalPrice, totalVat).Sub(s.TotalDiscount)
 }
 
+// UpdateItemQuantity - updates the quantity of an item in the shopping cart and recalculates the total price.
 func (s *ShoppingCart) UpdateItemQuantity(productId string, newQuantity int32) {
 	for i, item := range s.Items {
 		if item.ProductID.String() == productId {
@@ -94,4 +103,10 @@ func (s *ShoppingCart) UpdateItemQuantity(productId string, newQuantity int32) {
 			return
 		}
 	}
+}
+
+// ApplyDiscount - applies a discount to the shopping cart.
+func (s *ShoppingCart) ApplyDiscount(discount decimal.Decimal) {
+	s.TotalDiscount = discount
+	s.CalculateTotalPrice()
 }

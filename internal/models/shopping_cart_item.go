@@ -5,6 +5,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// ShoppingCartItem - represents a shopping cart item.
 type ShoppingCartItem struct {
 	Base
 	ProductID      uuid.UUID       `json:"product_id"`
@@ -15,6 +16,7 @@ type ShoppingCartItem struct {
 	ShoppingCartID string          `json:"shopping_cart_id"`
 }
 
+// NewShoppingCartItem - creates a new shopping cart item from a product ID and quantity and shopping cart ID and vat rate.
 func NewShoppingCartItem(productID uuid.UUID, productName string, quantity int32, price decimal.Decimal, vatRate int32, shoppingCartID string) ShoppingCartItem {
 	cartItemId := uuid.Must(uuid.NewV4())
 	return ShoppingCartItem{

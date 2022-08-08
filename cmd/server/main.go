@@ -1,52 +1,55 @@
 package main
 
 import (
-	"fmt"
 	"github.com/erdemcemal/basket-service/internal/basket"
 	"github.com/erdemcemal/basket-service/internal/database"
 	basketstore "github.com/erdemcemal/basket-service/internal/store/basket"
 	transportHttp "github.com/erdemcemal/basket-service/internal/transport/http"
-	"log"
-	"net/http"
+	log "github.com/siruspen/logrus"
 )
 
 type App struct {
+	Name    string
+	Version string
 }
 
 func (a *App) Run() error {
-	fmt.Println("setting up our application")
+	log.SetFormatter(&log.JSONFormatter{})
+	log.WithFields(
+		log.Fields{
+			"AppName":    a.Name,
+			"AppVersion": a.Version,
+		},
+	).Info("Setting up application")
 
 	var err error
-
-	if err != nil {
-		fmt.Println("failed to setup connection to the database")
-		return err
-	}
 	db, err := database.NewDatabase()
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
 	}
 	err = database.MigrateDB(db)
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
 		return err
 	}
-	bs := basketstore.NewStore(db)
+	bs := basketstore.NewBasketStore(db)
 	basketService := basket.NewService(bs)
 
 	handler := transportHttp.NewHandler(basketService)
-
-	if err := http.ListenAndServe(":3000", handler.Router); err != nil {
-		fmt.Println("Failed to set up server")
+	if err := handler.Serve(); err != nil {
+		log.Error("Failed to set up server")
 		return err
 	}
-	fmt.Println("Server is running on port 3000")
 	return nil
 }
 
 func main() {
-	app := &App{}
+	app := &App{
+		Name:    "basket-service",
+		Version: "1.0.0",
+	}
 	if err := app.Run(); err != nil {
-		panic(err)
+		log.Error("Failed to run application")
+		log.Fatal(err)
 	}
 }

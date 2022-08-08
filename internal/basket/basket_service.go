@@ -4,10 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/erdemcemal/basket-service/internal/campaign"
 	"github.com/erdemcemal/basket-service/internal/dto"
 	"github.com/erdemcemal/basket-service/internal/models"
 	basketstore "github.com/erdemcemal/basket-service/internal/store/basket"
+	"github.com/shopspring/decimal"
+	log "github.com/siruspen/logrus"
 	"gorm.io/gorm"
+	"math"
+	"os"
+	"strconv"
 )
 
 var (
@@ -18,6 +24,7 @@ var (
 	ErrProductStockNotEnough   = errors.New("product stock not enough")
 	ErrProductAlreadyInBasket  = errors.New("product already in basket")
 	ErrCheckoutBasket          = errors.New("error checking out basket")
+	ErrGettingProducts         = errors.New("error getting products")
 )
 
 type BasketService interface {
@@ -42,11 +49,10 @@ func NewService(store basketstore.BasketStore) *Service {
 // GetProducts - returns all products in the store
 // TODO: pagination, sorting, filtering
 func (s *Service) GetProducts(ctx context.Context) ([]dto.ProductDTO, error) {
-	fmt.Println("getting products")
 	products, err := s.store.GetProducts(ctx)
 	if err != nil {
-		fmt.Println("error getting products:", err)
-		return []dto.ProductDTO{}, err
+		log.Errorf("error getting products: %w", err)
+		return []dto.ProductDTO{}, ErrGettingProducts
 	}
 	var dtoProducts []dto.ProductDTO
 	for _, product := range products {
@@ -57,11 +63,10 @@ func (s *Service) GetProducts(ctx context.Context) ([]dto.ProductDTO, error) {
 
 // GetBasket - returns the shopping cart for the given user id, if not exist creates a new one
 func (s *Service) GetBasket(ctx context.Context, userId string) (dto.ShoppingCartDTO, error) {
-	fmt.Println("getting basket for user:", userId)
 	cart, err := s.store.GetBasket(ctx, userId)
 	if err != nil {
-		fmt.Println("error getting basket:", err)
-		return dto.ShoppingCartDTO{}, err
+		log.Error(err)
+		return dto.ShoppingCartDTO{}, ErrGettingUserShoppingCart
 	}
 	return fromShoppingCart(cart), nil
 }
@@ -70,9 +75,11 @@ func (s *Service) GetBasket(ctx context.Context, userId string) (dto.ShoppingCar
 func (s *Service) AddItemToBasket(ctx context.Context, userId string, item dto.AddItemToBasketDTO) (dto.ShoppingCartDTO, error) {
 	shoppingCart, err := s.store.GetBasket(ctx, userId)
 	if err != nil {
+		log.Error(err)
 		return dto.ShoppingCartDTO{}, ErrGettingUserShoppingCart
 	}
 	if shoppingCart.ContainsItem(item.ProductID) {
+		log.Error(err)
 		return dto.ShoppingCartDTO{}, ErrProductAlreadyInBasket
 	}
 	// get product from store
@@ -81,18 +88,21 @@ func (s *Service) AddItemToBasket(ctx context.Context, userId string, item dto.A
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return dto.ShoppingCartDTO{}, ErrProductNotFound
 		}
+		log.Error(err)
 		return dto.ShoppingCartDTO{}, err
 	}
-	// check if product has enough stock
 	if product.Quantity < item.Quantity {
 		return dto.ShoppingCartDTO{}, ErrProductStockNotEnough
 	}
+
 	cartItem := models.NewShoppingCartItem(product.ID, product.Name, item.Quantity, product.UnitPrice, product.VatRate, shoppingCart.ID.String())
-	// add item to the shopping cart
+
 	shoppingCart.AddItem(cartItem)
-	// update the shopping cart
+	shoppingCart.ApplyDiscount(decimal.NewFromFloat(tryApplyDiscount(s.store, shoppingCart)))
+
 	err = s.store.UpdateBasket(ctx, userId, shoppingCart)
 	if err != nil {
+		log.Error(err)
 		return dto.ShoppingCartDTO{}, err
 	}
 	return fromShoppingCart(shoppingCart), nil
@@ -102,16 +112,20 @@ func (s *Service) AddItemToBasket(ctx context.Context, userId string, item dto.A
 func (s *Service) RemoveItemFromBasket(ctx context.Context, userId string, itemToRemoveId string) (dto.ShoppingCartDTO, error) {
 	shoppingCart, err := s.store.GetBasket(ctx, userId)
 	if err != nil {
+		log.Error(err)
 		return dto.ShoppingCartDTO{}, ErrGettingUserShoppingCart
 	}
 	cartItemToRemove, exists := shoppingCart.GetCartItemByProductId(itemToRemoveId)
 	if !exists {
 		return dto.ShoppingCartDTO{}, ErrProductNotFound
 	}
+
 	shoppingCart.RemoveItem(itemToRemoveId)
+	shoppingCart.ApplyDiscount(decimal.NewFromFloat(tryApplyDiscount(s.store, shoppingCart)))
 
 	err = s.store.RemoveItemFromBasket(ctx, cartItemToRemove, shoppingCart)
 	if err != nil {
+		log.Error(err)
 		return dto.ShoppingCartDTO{}, err
 	}
 	return fromShoppingCart(shoppingCart), nil
@@ -121,6 +135,7 @@ func (s *Service) RemoveItemFromBasket(ctx context.Context, userId string, itemT
 func (s *Service) UpdateItemInBasket(ctx context.Context, userId string, productId string, newQuantity int32) (dto.ShoppingCartDTO, error) {
 	shoppingCart, err := s.store.GetBasket(ctx, userId)
 	if err != nil {
+		log.Error(err)
 		return dto.ShoppingCartDTO{}, ErrGettingUserShoppingCart
 	}
 	if !shoppingCart.ContainsItem(productId) {
@@ -131,14 +146,19 @@ func (s *Service) UpdateItemInBasket(ctx context.Context, userId string, product
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return dto.ShoppingCartDTO{}, ErrProductNotFound
 		}
-		return dto.ShoppingCartDTO{}, errors.New("error getting product")
+		log.Error(err)
+		return dto.ShoppingCartDTO{}, ErrGettingProducts
 	}
 	if product.Quantity < newQuantity {
 		return dto.ShoppingCartDTO{}, ErrProductStockNotEnough
 	}
+
 	shoppingCart.UpdateItemQuantity(productId, newQuantity)
+	shoppingCart.ApplyDiscount(decimal.NewFromFloat(tryApplyDiscount(s.store, shoppingCart)))
+
 	err = s.store.UpdateBasket(ctx, userId, shoppingCart)
 	if err != nil {
+		log.Error(err)
 		return dto.ShoppingCartDTO{}, ErrUpdateProductQuantity
 	}
 	return fromShoppingCart(shoppingCart), nil
@@ -148,10 +168,15 @@ func (s *Service) UpdateItemInBasket(ctx context.Context, userId string, product
 func (s *Service) CheckoutBasket(ctx context.Context, userId string) error {
 	shoppingCart, err := s.store.GetBasket(ctx, userId)
 	if err != nil {
+		log.Error(err)
 		return ErrGettingUserShoppingCart
 	}
+
+	shoppingCart.ApplyDiscount(decimal.NewFromFloat(tryApplyDiscount(s.store, shoppingCart)))
+
 	err = s.store.CheckoutBasket(ctx, shoppingCart)
 	if err != nil {
+		log.Error(err)
 		return ErrCheckoutBasket
 	}
 	return nil
@@ -177,7 +202,7 @@ func fromShoppingCart(cart models.ShoppingCart) dto.ShoppingCartDTO {
 		TotalPrice:    cart.TotalPrice,
 		TotalVat:      cart.TotalVat,
 		TotalDiscount: cart.TotalDiscount,
-		TotalAfterVat: cart.SubTotal,
+		SubTotal:      cart.SubTotal,
 	}
 }
 
@@ -195,4 +220,29 @@ func fromShoppingCartItems(items []models.ShoppingCartItem) []dto.ShoppingCartIt
 		})
 	}
 	return dtoItems
+}
+
+func tryApplyDiscount(store basketstore.BasketStore, cart models.ShoppingCart) float64 {
+	givenAmountStr := os.Getenv("GIVEN_AMOUNT")
+	fmt.Println("given amount: ", givenAmountStr)
+	if givenAmountStr == "" {
+		fmt.Println("no given amount")
+		panic("no given amount")
+	}
+	givenAmount, err := strconv.ParseFloat(givenAmountStr, 64)
+	if err != nil {
+		panic(fmt.Errorf("error parsing given amount: %w", err))
+	}
+	log.Info("Given amount:", givenAmount)
+	var discountRules []campaign.Rule
+	userMonthlyAmount, _ := store.GetUserMonthlyOrderAmount(context.Background(), cart.UserID)
+	discountRules = append(discountRules, campaign.NewPurchaseAmountRule(givenAmount, userMonthlyAmount))
+
+	userLastFourthOrderAmount, _ := store.GetEveryFourthOrderAmount(context.Background())
+	discountRules = append(discountRules, campaign.NewEveryFourthOrderRule(givenAmount, userLastFourthOrderAmount))
+	discountRules = append(discountRules, campaign.SameProductRule{})
+
+	discountCalculator := campaign.NewDiscountCalculator(discountRules)
+	discountAmount := discountCalculator.CalculateDiscount(cart)
+	return math.Round(discountAmount*100) / 100
 }

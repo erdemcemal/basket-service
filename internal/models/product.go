@@ -2,6 +2,7 @@ package models
 
 import "github.com/shopspring/decimal"
 
+// Product - represents a product.
 type Product struct {
 	Base
 	Name      string
