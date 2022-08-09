@@ -40,7 +40,7 @@ func TestDiscountCalculator_SameProductRule_CalculateDiscount(t *testing.T) {
 	expectedDiscount := 2.4
 	discount := math.Round(dc.CalculateDiscount(cart)*100) / 100
 	if discount != expectedDiscount {
-		t.Errorf("Expected discount to be 30, got %f", discount)
+		t.Errorf("Expected discount to be 2.4, got %f", discount)
 	}
 }
 
@@ -78,7 +78,7 @@ func TestPurchaseAmountRule_CalculateDiscount(t *testing.T) {
 	expectedDiscount := 51.0
 	discount := math.Round(dc.CalculateDiscount(cart)*100) / 100
 	if discount != expectedDiscount {
-		t.Errorf("Expected discount to be 30, got %f", discount)
+		t.Errorf("Expected discount to be 51, got %f", discount)
 	}
 }
 
@@ -124,6 +124,6 @@ func TestEveryFourthOrderRule_CalculateDiscount(t *testing.T) {
 	expectedDiscount := 60.5
 	discount := math.Round(dc.CalculateDiscount(cart)*100) / 100
 	if discount != expectedDiscount {
-		t.Errorf("Expected discount to be 30, got %f", discount)
+		t.Errorf("Expected discount to be 60.5, got %f", discount)
 	}
 }

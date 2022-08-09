@@ -27,6 +27,7 @@ var (
 	ErrGettingProducts         = errors.New("error getting products")
 )
 
+// BasketService - represents the basket service
 type BasketService interface {
 	GetProducts(ctx context.Context) ([]dto.ProductDTO, error)
 	GetBasket(ctx context.Context, userId string) (dto.ShoppingCartDTO, error)
@@ -36,10 +37,12 @@ type BasketService interface {
 	CheckoutBasket(ctx context.Context, userId string) error
 }
 
+// Service - represents the basket service implementation
 type Service struct {
 	store basketstore.BasketStore
 }
 
+// NewService - creates a new basket service with the given store
 func NewService(store basketstore.BasketStore) *Service {
 	return &Service{
 		store: store,

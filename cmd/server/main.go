@@ -8,11 +8,13 @@ import (
 	log "github.com/siruspen/logrus"
 )
 
+// App - contains the application configuration.
 type App struct {
 	Name    string
 	Version string
 }
 
+// Run - sets up our application and starts the server.
 func (a *App) Run() error {
 	log.SetFormatter(&log.JSONFormatter{})
 	log.WithFields(

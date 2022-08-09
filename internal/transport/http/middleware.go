@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"github.com/gofrs/uuid"
 	log "github.com/siruspen/logrus"
 	"net/http"
 	"time"
@@ -42,9 +43,15 @@ func Auth(original func(w http.ResponseWriter, r *http.Request)) func(w http.Res
 		authHeader := r.Header.Get("user_id")
 		if authHeader == "" {
 			w.WriteHeader(http.StatusUnauthorized)
-			log.Error("user_id is not present in request header")
+			log.Error("user_id is not present in request header" + authHeader)
 			return
 		} else {
+			// if valid uuid is not present in request header, return error
+			if _, err := uuid.FromString(authHeader); err != nil {
+				w.WriteHeader(http.StatusUnauthorized)
+				log.Error("user_id is not a valid uuid" + authHeader)
+				return
+			}
 			original(w, r)
 		}
 	}
